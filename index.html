@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Audio and Text Processing</title>
+    <style>
+ .microphone{
+            max-width: 10%;
+            height: auto;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            font-size: 32px;
+            color: #333;
+            margin: 20px 0;
+        }
+
+        #captureImage {
+            max-width: 100%;
+            height: auto;
+        }
+
+        p {
+            font-size: 16px;
+            color: #333;
+        }
+
+        /* Add a class for highlighting */
+        .highlighted {
+            background-color: yellow;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4285f4;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #357ae8;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh; /* This ensures that the content is centered vertically */
+        }
+
+        h1 {
+            font-size: 32px;
+            color: #333;
+            margin: 20px 0;
+        }
+
+        .microphone {
+            max-width: 10%;
+            height: auto;
+        }
+
+        #captureImage {
+            max-width: 100%;
+            height: auto;
+        }
+
+        p {
+            font-size: 16px;
+            color: #333;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4285f4;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #357ae8;
+        }
+        .text-container {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        /* Center the text and button horizontally within their container */
+        .input-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+    </style>
+</head>
+<body>
+    <h1>Click and Hold to Capture Audio</h1>
+    <select id="languageSelect">
+        <option value="en">English</option>
+        <option value="kn-IN">Kannada</option>
+        <option value="hi-IN">Hindi</option>
+    </select>
+    <div class="microphone">
+    <img id="captureImage" src="image.jpg" alt="Click and Hold to Capture">
+    </div>
+    
+    <p id="processedAudio"class="highlighted"></p>
+    
+
+    <textarea id="textInput" placeholder="Enter text for processing"></textarea>
+    <button id="processTextButton">Process Text</button>
+    <div class="text-container"> 
+        <p id="processedText"></p>
+    </div>
+
+    <script>
+        // JavaScript code for audio and text processing
+        let mediaRecorder;
+        let capturing = false;
+        let audioChunks = [];
+
+        const captureImage = document.getElementById('captureImage');
+        const processedAudioElement = document.getElementById('processedAudio');
+        const textInput = document.getElementById('textInput');
+        const processTextButton = document.getElementById('processTextButton');
+        const processedTextElement = document.getElementById('processedText');
+        const languageSelect = document.getElementById('languageSelect');
+
+
+        // Add mousedown event listener to start capturing audio
+        captureImage.addEventListener('mousedown', () => {
+            capturing = true;
+            processedAudioElement.innerText = 'Capturing audio...';
+
+            navigator.mediaDevices
+                .getUserMedia({ audio: true })
+                .then((stream) => {
+                    audioChunks = [];
+                    mediaRecorder = new MediaRecorder(stream);
+
+                    mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            audioChunks.push(event.data);
+                        }
+                    };
+
+                    mediaRecorder.start();
+
+                    // Stop capturing audio after 5 seconds
+                    setTimeout(() => {
+                        stopCaptureAndSend();
+                    }, 5000);
+                })
+                .catch(error => {
+                    console.error('Error capturing audio:', error);
+                    processedAudioElement.innerText = 'Error capturing audio.';
+                    stopCaptureAndSend(); // Stop capturing on error
+                });
+        });
+
+        // Function to stop audio capture and send audio
+        function stopCaptureAndSend() {
+            if (capturing) {
+                capturing = false;
+                processedAudioElement.innerText = 'Sending audio to server...';
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const selectedLanguage = languageSelect.value;
+
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob);
+                    formData.append('language', selectedLanguage); // Append the selected language value
+
+
+                    // Send captured audio to the server
+                    fetch('http://127.0.0.1:5000/process-audio', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.blob();
+                    })
+                    .then(processedAudioBlob => {
+                        playProcessedAudio(URL.createObjectURL(processedAudioBlob)); // Play the processed audio
+                    })
+                    .catch(error => {
+                        console.error('Error processing audio:', error);
+                        processedAudioElement.innerText = 'Error processing audio.';
+                    });
+                };
+
+                mediaRecorder.stop(); // Stop audio capture
+            }
+        }
+
+        // Function to play processed audio
+        function playProcessedAudio(audioUrl) {
+            const audio = new Audio(audioUrl);
+            audio.play();
+            processedAudioElement.innerText = 'Playing processed audio...';
+        }
+
+        // Event listener for processing text
+        processTextButton.addEventListener('click', () => {
+        
+            const inputText = textInput.value;
+            const selectedLanguage = languageSelect.value; // Get the selected language value
+
+    // Create a data object containing both language and text
+            const requestData = {
+                language: selectedLanguage,
+                Atext: inputText
+            };
+            // Send text to the server for processing
+            fetch('http://127.0.0.1:5000/process-text', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json' // Set the content type to JSON
+        },
+        body: JSON.stringify(requestData) // Convert the data object to JSON
+    })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.text();
+            })
+            .then(processedText => {
+                processedTextElement.innerText = processedText;
+            })
+            .catch(error => {
+                console.error('Error processing text:', error);
+                processedTextElement.innerText = 'Error processing text.';
+            });
+        });
+    </script>
+</body>
+</html>
